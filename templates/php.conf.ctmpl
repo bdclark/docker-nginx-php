@@ -1,0 +1,27 @@
+{{ $basekey := env "NGINX_CONF_KEY" }}
+server {
+    listen {{ env "NGINX_LISTEN_PORT" }};
+    index {{ key_or_default (printf "%s/server/index" $basekey) "index.php index.html" }};
+{{- if env "NGINX_SERVER_NAME" }}
+    server_name {{ env "NGINX_SERVER_NAME" }};
+{{ end }}
+{{- if env "NGINX_SERVER_ROOT" }}
+    root {{ env "NGINX_SERVER_ROOT" }};
+{{ end }}
+    root {{ key_or_default (printf "%s/server/root" $basekey) "/srv" }};
+
+    location ~ [^/]\.php(/|$) {
+        try_files $uri =404;
+        fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+{{ if env "PHP_FPM_LISTEN_PATH" }}
+        fastcgi_pass unix:{{ env "PHP_FPM_LISTEN_PATH" }};
+{{ else }}
+        fastcgi_pass {{ env "PHP_FPM_LISTEN_HOST" }}:{{ env "PHP_FPM_LISTEN_PORT" }};
+{{ end }}
+        fastcgi_index {{ key_or_default (printf "%s/server/fastcgi_index" $basekey) "index.php" }};
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param HTTPS off;
+        fastcgi_param HTTP_PROXY "";
+    }
+}

@@ -1,0 +1,39 @@
+server {
+    listen 80;
+    root /srv/web;
+{{ if env "NGINX_SERVER_NAME" }}
+    server_name {{ env "NGINX_SERVER_NAME" }};
+{{ end }}
+{{ if env "ENABLE_CORS" | parseBool }}
+    add_header 'Access-Control-Allow-Origin' '*' always;
+    add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS, PATCH' always;
+    add_header 'Access-Control-Allow-Headers' 'Accept,Authorization,Cache-Control,Content-Type,DNT,If-Modified-Since,Keep-Alive,Origin,User-Agent,X-Mx-ReqToken,X-Requested-With' always;
+
+    if ($request_method = 'OPTIONS') {
+      return 204;
+    }
+{{ end }}
+    # strip app.php/ if it is present
+    rewrite ^/app\.php/?(.*)$ /$1 permanent;
+
+    location / {
+        index app.php;
+        try_files $uri @rewriteapp;
+    }
+
+    location @rewriteapp {
+        rewrite ^(.*)$ /app.php/$1 last;
+    }
+
+    location ~ ^/app\.php(/|$) {
+{{ if env "PHP_FPM_LISTEN_PATH" }}
+        fastcgi_pass unix:{{ env "PHP_FPM_LISTEN_PATH" }};
+{{ else }}
+        fastcgi_pass {{ env "PHP_FPM_LISTEN_HOST" }}:{{ env "PHP_FPM_LISTEN_PORT" }};
+{{ end }}
+        fastcgi_split_path_info ^(.+\.php)(/.*)$;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param HTTPS off;
+    }
+}
